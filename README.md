@@ -128,17 +128,3 @@ It’s about **where you place them in the system**.
 
 - Live Demo: https://pitch-craft-hackathon.vercel.app/
 - Devpost: https://devpost.com/software/pitchcraft
-
----
-
-## 📝 License
-
-MIT License (see `LICENSE` file).
-
----
-
-If you want, I can also:
-
-- Add an **Architecture Diagram section**
-- Write a **Technical Deep Dive** README
-- Create a **Judge-friendly TL;DR** at the top
