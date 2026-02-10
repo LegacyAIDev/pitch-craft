@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 ## PitchCraft – Discovery-to-Proposal Automation
 
 PitchCraft is a Next.js 16 (App Router) app that turns discovery calls into complete, ready-to-send proposals using:
+=======
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app)
+..
+## Getting Started
+>>>>>>> 4c881f8d1659a67badd76b298388d86dbdffe05b
 
 - **AI Discovery Agent** (Gemini via Vercel AI SDK)
 - **Fireflies recording upload** (via n8n → HuggingFace webhook)
