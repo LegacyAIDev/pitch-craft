@@ -48,8 +48,10 @@ export default function DashboardPage() {
   const [isSendingTranscript, setIsSendingTranscript] = useState(false);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [transcriptSuccess, setTranscriptSuccess] = useState(false);
+  const [proposalPdfUrl, setProposalPdfUrl] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const proposalPreviewRef = useRef<HTMLDivElement>(null);
 
   const discoveryTransport = useMemo(
     () => new DefaultChatTransport({ api: "/api/discovery/chat" }),
@@ -71,6 +73,8 @@ export default function DashboardPage() {
   const [processingStep, setProcessingStep] = useState<
     "idle" | "analyzing" | "extracting" | "generating" | "success"
   >("idle");
+  const [firefliesPdfUrl, setFirefliesPdfUrl] = useState<string | null>(null);
+  const firefliesPreviewRef = useRef<HTMLDivElement>(null);
 
   const [proposals] = useState<ProposalRecord[]>([]);
 
@@ -119,11 +123,37 @@ export default function DashboardPage() {
     scrollChatToBottom();
   }, [messages, scrollChatToBottom]);
 
+  useEffect(() => {
+    if (proposalPdfUrl && proposalPreviewRef.current) {
+      proposalPreviewRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [proposalPdfUrl]);
+
+  useEffect(() => {
+    if (firefliesPdfUrl && firefliesPreviewRef.current) {
+      firefliesPreviewRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [firefliesPdfUrl]);
+
   const handleLaunchAgent = () => {
     setTranscriptError(null);
     setTranscriptSuccess(false);
+    if (proposalPdfUrl) {
+      URL.revokeObjectURL(proposalPdfUrl);
+      setProposalPdfUrl(null);
+    }
     setIsAgentModalOpen(true);
     setMessages([]);
+  };
+
+  const closeAgentModal = () => {
+    setIsAgentModalOpen(false);
+    if (proposalPdfUrl) {
+      URL.revokeObjectURL(proposalPdfUrl);
+      setProposalPdfUrl(null);
+    }
+    setTranscriptError(null);
+    setTranscriptSuccess(false);
   };
 
   const isChatBusy = status === "submitted" || status === "streaming";
@@ -159,6 +189,10 @@ export default function DashboardPage() {
   const handleGenerateProposal = async () => {
     setTranscriptError(null);
     setTranscriptSuccess(false);
+    if (proposalPdfUrl) {
+      URL.revokeObjectURL(proposalPdfUrl);
+      setProposalPdfUrl(null);
+    }
     const transcript = buildTranscript();
     if (!transcript.trim()) {
       setTranscriptError("No conversation to send.");
@@ -171,8 +205,16 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript }),
       });
-      const data = await res.json().catch(() => ({}));
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/pdf")) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setProposalPdfUrl(url);
+        setTranscriptSuccess(true);
+        return;
+      }
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         setTranscriptError((data.error as string) || data.details || "Failed to send transcript.");
         return;
       }
@@ -205,6 +247,10 @@ export default function DashboardPage() {
 
   const handleFirefliesSubmit = async () => {
     setFirefliesError(null);
+    if (firefliesPdfUrl) {
+      URL.revokeObjectURL(firefliesPdfUrl);
+      setFirefliesPdfUrl(null);
+    }
     const link = firefliesLink.trim();
     if (!link) {
       setFirefliesError("Please enter a Fireflies recording link.");
@@ -220,23 +266,42 @@ export default function DashboardPage() {
     setIsProcessing(true);
     setProcessingStep("analyzing");
 
-    const steps: Array<{ step: typeof processingStep; delay: number }> = [
-      { step: "analyzing", delay: 1500 },
-      { step: "extracting", delay: 2000 },
-      { step: "generating", delay: 2500 },
-      { step: "success", delay: 500 },
-    ];
-
-    for (const { step, delay } of steps) {
-      setProcessingStep(step);
-      await new Promise((r) => setTimeout(r, delay));
+    try {
+      const res = await fetch("/api/discovery/fireflies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: link }),
+      });
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/pdf")) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setFirefliesPdfUrl(url);
+        setProcessingStep("success");
+        setIsProcessing(false);
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setFirefliesError((data.error as string) || data.details || "Failed to process recording.");
+        setProcessingStep("idle");
+        return;
+      }
+      setProcessingStep("success");
+    } catch (err) {
+      setFirefliesError(err instanceof Error ? err.message : "Failed to process recording.");
+      setProcessingStep("idle");
+    } finally {
+      setIsProcessing(false);
     }
-
-    setIsProcessing(false);
   };
 
   const closeFirefliesModal = () => {
     if (!isProcessing) {
+      if (firefliesPdfUrl) {
+        URL.revokeObjectURL(firefliesPdfUrl);
+        setFirefliesPdfUrl(null);
+      }
       setIsFirefliesModalOpen(false);
       setFirefliesLink("");
       setFirefliesError(null);
@@ -465,7 +530,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-navy/60 backdrop-blur-sm"
-            onClick={() => setIsAgentModalOpen(false)}
+            onClick={closeAgentModal}
             aria-hidden="true"
           />
           <div className="relative flex h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-beige-dark bg-white shadow-2xl">
@@ -485,7 +550,7 @@ export default function DashboardPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setIsAgentModalOpen(false)}
+                  onClick={closeAgentModal}
                   className="rounded-lg p-2 text-navy/70 hover:bg-navy/10 hover:text-navy"
                   aria-label="Close"
                 >
@@ -496,9 +561,47 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {isSendingTranscript && (
+              <div className="border-b border-beige-dark bg-beige/30 px-6 py-5">
+                <p className="text-sm font-medium text-navy">Generating your proposal…</p>
+                <p className="mt-1 text-xs text-navy/70">Waiting for response from the server.</p>
+                <div className="mt-3 flex justify-center">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-navy border-t-transparent" />
+                </div>
+              </div>
+            )}
+
+            {proposalPdfUrl && (
+              <div
+                ref={proposalPreviewRef}
+                className="border-b border-beige-dark bg-beige/30 p-4"
+              >
+                <p className="mb-3 text-sm font-medium text-navy">Your proposal is ready</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <a
+                    href={proposalPdfUrl}
+                    download="proposal.pdf"
+                    className="inline-flex items-center gap-2 rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy/90"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download PDF
+                  </a>
+                </div>
+                <div className="mt-3 h-[360px] overflow-hidden rounded-lg border border-beige-dark bg-white">
+                  <iframe
+                    src={proposalPdfUrl}
+                    title="Proposal PDF preview"
+                    className="h-full w-full"
+                  />
+                </div>
+              </div>
+            )}
+
             <div
               ref={chatContainerRef}
-              className="flex-1 overflow-y-auto p-6 space-y-4"
+              className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0"
             >
               {messages.map((msg) => (
                 <div
@@ -641,29 +744,63 @@ export default function DashboardPage() {
                   </button>
                 </>
               ) : processingStep === "success" ? (
-                <div className="py-6 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
-                    <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <h4 className="font-heading text-xl text-navy">Proposal generated successfully!</h4>
-                  <p className="mt-2 text-navy/80">Your proposal is ready to view or send.</p>
-                  <div className="mt-6 flex gap-3 justify-center">
-                    <button
-                      type="button"
-                      className="rounded-lg bg-navy px-4 py-2 font-medium text-white hover:bg-navy/90"
-                    >
-                      View Proposal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={closeFirefliesModal}
-                      className="rounded-lg border border-navy px-4 py-2 font-medium text-navy hover:bg-navy/5"
-                    >
-                      Close
-                    </button>
-                  </div>
+                <div className="p-6">
+                  {firefliesPdfUrl ? (
+                    <div ref={firefliesPreviewRef}>
+                      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
+                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <h4 className="font-heading text-xl text-navy">Proposal generated successfully!</h4>
+                      <p className="mt-2 text-sm text-navy/80">Your proposal is ready to view or download.</p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <a
+                          href={firefliesPdfUrl}
+                          download="proposal.pdf"
+                          className="inline-flex items-center gap-2 rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy/90"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download PDF
+                        </a>
+                        <button
+                          type="button"
+                          onClick={closeFirefliesModal}
+                          className="rounded-lg border border-navy px-4 py-2 text-sm font-medium text-navy hover:bg-navy/5"
+                        >
+                          Close
+                        </button>
+                      </div>
+                      <div className="mt-4 h-[360px] overflow-hidden rounded-lg border border-beige-dark bg-white">
+                        <iframe
+                          src={firefliesPdfUrl}
+                          title="Proposal PDF preview"
+                          className="h-full w-full"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center">
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+                        <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <h4 className="font-heading text-xl text-navy">Proposal generated successfully!</h4>
+                      <p className="mt-2 text-navy/80">Your proposal is ready to view or send.</p>
+                      <div className="mt-6 flex gap-3 justify-center">
+                        <button
+                          type="button"
+                          onClick={closeFirefliesModal}
+                          className="rounded-lg border border-navy px-4 py-2 font-medium text-navy hover:bg-navy/5"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="py-8">

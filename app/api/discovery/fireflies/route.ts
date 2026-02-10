@@ -1,34 +1,39 @@
-const DISCOVERY_WEBHOOK_URL =
-  "https://zuleleee-education-chat.hf.space/webhook/e4ecfb1b-7ac2-4ba8-bf89-57abb6029805";
+const FIREFLIES_WEBHOOK_URL =
+  "https://zuleleee-education-chat.hf.space/webhook/430efd7d-3ad3-4971-97db-f22bcc6d5244";
+
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
-  let body: { transcript?: string };
+  let body: { url?: string };
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    return Response.json(
+      { error: "Invalid JSON body" },
+      { status: 400 }
+    );
   }
 
-  const transcript = body.transcript;
-  if (typeof transcript !== "string" || !transcript.trim()) {
+  const url = body.url;
+  if (typeof url !== "string" || !url.trim()) {
     return Response.json(
-      { error: "Missing or invalid 'transcript' field" },
-      { status: 400 },
+      { error: "Missing or invalid 'url' field (Fireflies recording link)" },
+      { status: 400 }
     );
   }
 
   try {
-    const res = await fetch(DISCOVERY_WEBHOOK_URL, {
+    const res = await fetch(FIREFLIES_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript: transcript.trim() }),
+      body: JSON.stringify({ url: url.trim() }),
     });
 
     if (!res.ok) {
       const text = await res.text();
       return Response.json(
         { error: "Webhook request failed", details: text },
-        { status: 502 },
+        { status: 502 }
       );
     }
 
@@ -49,8 +54,8 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return Response.json(
-      { error: "Failed to send transcript", details: message },
-      { status: 500 },
+      { error: "Failed to process Fireflies recording", details: message },
+      { status: 500 }
     );
   }
 }
