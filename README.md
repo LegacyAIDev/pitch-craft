@@ -1,173 +1,144 @@
-<<<<<<< HEAD
-## PitchCraft – Discovery-to-Proposal Automation
+# PitchCraft
 
-PitchCraft is a Next.js 16 (App Router) app that turns discovery calls into complete, ready-to-send proposals using:
-=======
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app)
-..
-## Getting Started
->>>>>>> 4c881f8d1659a67badd76b298388d86dbdffe05b
+**Turn discovery calls into winning proposals automatically.**  
+PitchCraft is an end-to-end agentic AI system that converts discovery call recordings into complete, professional proposals with **machine-learning–predicted pricing** in under 10 minutes.
 
-- **AI Discovery Agent** (Gemini via Vercel AI SDK)
-- **Fireflies recording upload** (via n8n → HuggingFace webhook)
-- **Supabase Auth** (email/password + company metadata)
+Built for Google’s Hackathon.
 
-The main flows:
+---
 
-- **Marketing site**: high-converting landing page at `/`
-- **Auth**: `/signup` and `/login` (Supabase)
-- **Dashboard**: `/dashboard` with:
-  - AI Discovery Agent chat (Gemini)
-  - Fireflies recording upload
-  - Recent proposals & empty state
+## Overview
+
+Quote-based service businesses lose deals due to slow proposal turnaround and inconsistent pricing. PitchCraft eliminates this bottleneck by transforming unstructured sales conversations into priced, ready-to-send proposals using **LLM agents + Machine Learning as a Tool (MLAT)**.
+
+Instead of asking LLMs to guess numbers, PitchCraft invokes a real ML pricing model as a callable tool inside the agent workflow.
+
+---
+
+## Key Idea: Machine Learning as a Tool (MLAT)
+
+Most AI proposal tools rely entirely on LLMs for reasoning and pricing. PitchCraft separates concerns:
+
+- **LLMs** handle language understanding, reasoning, and drafting
+- **ML** handles numeric prediction and pricing consistency
+
+A pre-trained **XGBoost model** is exposed as a callable tool via FastAPI and invoked contextually by the agent during proposal generation.
+
+---
+
+## System Architecture
+
+PitchCraft operates as a single agentic workflow with two Gemini-powered agents:
+
+### 1. Research Agent
+
+- Ingests Fireflies.ai discovery call transcripts
+- Performs prospect intelligence gathering via parallel tool calls
+- Uses Firecrawl for company data and Perplexity for background research
+- Outputs structured JSON with scope, requirements, and complexity factors
+
+### 2. Draft Agent
+
+- Extracts pricing features from structured research output
+- Invokes the XGBoost pricing model as a **tool call**
+- Reasons about the prediction in context
+- Generates a complete proposal using structured output parsing
+- Renders the proposal into a Google Docs template
+
+---
+
+## Pricing Model
+
+- Model: **XGBoost Regressor**
+- Training data:
+  - 40 real agency deals
+  - 30 human-verified synthetic records
+- Validation:
+  - Group-aware cross-validation
+- Performance:
+  - R²: **0.807**
+  - MAE: **$3,688**
+- Designed to work under **extreme data scarcity**
+
+A sensitivity analysis confirms the model learns economically meaningful relationships between scope, integrations, and complexity.
 
 ---
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router, TypeScript)
-- **Styling**: Tailwind CSS v4 (via `@tailwindcss/postcss`)
-- **Fonts**: Barlow Condensed, Bebas Neue, Cal Sans
-- **Auth**: Supabase (`@supabase/supabase-js`)
-- **AI**: Vercel AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/google` – Gemini)
+**Backend**
+
+- FastAPI
+- Python
+- XGBoost
+- scikit-learn
+- Pandas
+
+**Agents & Automation**
+
+- Gemini
+- n8n (workflow orchestration)
+- Tool calling and structured output parsing
+
+**Frontend**
+
+- React
+- Vercel
+
+**Integrations**
+
+- Fireflies.ai
+- Firecrawl
+- Perplexity
+- Google Docs
 
 ---
 
-## Setup
+## Results (Pilot Deployment)
 
-### 1. Install dependencies
+Deployed in production at **Legacy AI LLC**:
 
-```bash
-npm install
-```
-
-### 2. Environment variables
-
-Create `.env.local` in the project root (based on `.env.example`):
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-
-GOOGLE_GENERATIVE_AI_API_KEY=your-gemini-api-key
-```
-
-- Supabase URL + anon key: from your Supabase project (`Settings → API`).
-- Gemini API key: from Google AI Studio (`https://aistudio.google.com/apikey`).
-
-### 3. Run dev server
-
-```bash
-npm run dev
-```
-
-Then open `http://localhost:3000`.
+- 18× faster proposal creation
+- 12–18× faster speed-to-lead
+- 95%+ reduction in hands-on proposal time
+- Proposals generated in under 10 minutes
 
 ---
 
-## Auth & User Data
+## What’s Next
 
-- **Signup** (`/signup`):
-  - Email, password
-  - Company name, location, niche (stored in Supabase user metadata)
-  - Beta notice: ML model fine-tuned on LegacyAI quote data
-- **Login** (`/login`):
-  - Email, password
-  - On success → redirect to `/dashboard`
-
-Dashboard routes are protected on the client using Supabase session checks.
+- Expand pricing model with more real-world data
+- Add support for custom training data for a business
+- Build closed-loop learning from won/lost deals
+- Industry-specific pricing models (construction, consulting, services)
 
 ---
 
-## Dashboard Overview
+## Why This Matters
 
-### Header
+PitchCraft demonstrates that ML does not need to be replaced by LLMs.  
+Instead, **ML becomes more powerful when embedded as a tool inside agentic systems**.
 
-- `PitchCraft` logo
-- Breadcrumb `Dashboard`
-- User menu (company name, email, Settings, Logout)
-
-### Discovery Agent (Gemini)
-
-- Large primary card: **Start Discovery Agent**
-- Modal chat:
-  - Uses Vercel AI SDK `useChat` with API:
-    - `POST /api/discovery/chat`
-  - Model: `google("gemini-1.5-flash")`
-  - Rich **system prompt** (“PitchCraft Discovery Agent”) for:
-    - Business goals, scope, tech, timeline, budget, success metrics
-  - Conversation UI:
-    - Assistant messages: navy bubbles
-    - User messages: beige bubbles
-    - Typing state: “AI is thinking…”
-  - **Generate Proposal**:
-    - Builds a transcript of the conversation
-    - Calls `POST /api/discovery/send-transcript`
-    - When the backend returns a PDF:
-      - Shows inline PDF preview in the modal
-      - Provides **Download PDF** button
-
-### Upload Fireflies Recording
-
-- Secondary card: **Upload Fireflies Recording**
-- Modal:
-  - Validates Fireflies URL
-  - Calls:
-    - `POST /api/discovery/fireflies` with `{ url: "<fireflies-link>" }`
-  - Backend forwards to the same HuggingFace/n8n webhook as discovery
-  - On success with PDF:
-    - Shows **“Proposal generated successfully!”**
-    - Inline PDF preview
-    - **Download PDF** and Close button
+ML isn’t just about training models.  
+It’s about **where you place them in the system**.
 
 ---
 
-## API Endpoints
+## 🔗 Links
 
-All endpoints are implemented as App Router routes under `app/api`.
-
-- **Discovery chat**
-
-  - `POST /api/discovery/chat`
-  - Body: `{ messages: UIMessage[] }` from `@ai-sdk/react` `useChat`
-  - Uses `streamText` with Gemini and the Discovery Agent system prompt
-
-- **Send transcript (Discovery → Proposal)**
-
-  - `POST /api/discovery/send-transcript`
-  - Body from client: `{ transcript: string }`
-  - Server:
-    - Forwards to HuggingFace/n8n webhook
-    - Detects PDF by header or magic bytes
-    - Returns the PDF with `Content-Type: application/pdf`
-
-- **Fireflies upload → Proposal**
-
-  - `POST /api/discovery/fireflies`
-  - Body: `{ url: string }` (Fireflies meeting link)
-  - Server:
-    - Forwards to the same webhook with `{ url }`
-    - Detects and returns PDF as above
-
-Front-end treats any successful binary response with enough size as a PDF and shows an inline preview + download link.
+- Live Demo: https://pitch-craft-hackathon.vercel.app/
+- Devpost: https://devpost.com/software/pitchcraft
 
 ---
 
-## Development Notes
+## 📝 License
 
-- UI is built mobile-first with:
-  - Sticky header on dashboard
-  - Responsive sections and modals
-- Dashboard and settings use a shared `DashboardHeader`.
-- Supabase client is created lazily in `lib/supabase/client.ts` and throws a clear error if env vars are missing.
-- AI SDK is used in **client** components via `@ai-sdk/react` and in **server** routes via `ai` and `@ai-sdk/google`.
+MIT License (see `LICENSE` file).
 
 ---
 
-## Scripts
+If you want, I can also:
 
-- `npm run dev` – start dev server
-- `npm run build` – production build
-- `npm run start` – run built app
-- `npm run lint` – run ESLint
-
+- Add an **Architecture Diagram section**
+- Write a **Technical Deep Dive** README
+- Create a **Judge-friendly TL;DR** at the top
