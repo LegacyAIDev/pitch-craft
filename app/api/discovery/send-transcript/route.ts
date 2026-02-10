@@ -32,10 +32,18 @@ export async function POST(req: Request) {
       );
     }
 
+    const buffer = await res.arrayBuffer();
     const contentType = res.headers.get("content-type") ?? "";
-    if (contentType.includes("application/pdf")) {
-      const pdfBuffer = await res.arrayBuffer();
-      return new Response(pdfBuffer, {
+    const isPdfByHeader = contentType.includes("application/pdf");
+    const isPdfByMagic =
+      buffer.byteLength >= 4 &&
+      new Uint8Array(buffer)[0] === 0x25 &&
+      new Uint8Array(buffer)[1] === 0x50 &&
+      new Uint8Array(buffer)[2] === 0x44 &&
+      new Uint8Array(buffer)[3] === 0x46;
+
+    if (isPdfByHeader || isPdfByMagic) {
+      return new Response(buffer, {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
@@ -44,8 +52,13 @@ export async function POST(req: Request) {
       });
     }
 
-    const data = await res.json().catch(() => ({}));
-    return Response.json(data);
+    try {
+      const text = new TextDecoder().decode(buffer);
+      const data = JSON.parse(text);
+      return Response.json(data);
+    } catch {
+      return Response.json({ ok: true });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return Response.json(

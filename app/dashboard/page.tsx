@@ -206,9 +206,13 @@ export default function DashboardPage() {
         body: JSON.stringify({ transcript }),
       });
       const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("application/pdf")) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
+      const blob = await res.blob();
+      const isPdfResponse =
+        contentType.includes("application/pdf") ||
+        (res.ok && blob.size > 100 && !contentType.includes("application/json"));
+      if (isPdfResponse && blob.size > 0) {
+        const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+        const url = URL.createObjectURL(pdfBlob);
         setProposalPdfUrl(url);
         setTranscriptSuccess(true);
         return;
@@ -273,9 +277,13 @@ export default function DashboardPage() {
         body: JSON.stringify({ url: link }),
       });
       const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("application/pdf")) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
+      const blob = await res.blob();
+      const isPdfResponse =
+        contentType.includes("application/pdf") ||
+        (res.ok && blob.size > 100 && !contentType.includes("application/json"));
+      if (isPdfResponse && blob.size > 0) {
+        const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+        const url = URL.createObjectURL(pdfBlob);
         setFirefliesPdfUrl(url);
         setProcessingStep("success");
         setIsProcessing(false);
